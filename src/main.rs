@@ -14,7 +14,7 @@ fn main() {
     //let ntdll = get_dll_address("ntdll.dll".to_string(), teb).unwrap();
 
     //set the process name to cmd.exe for testing
-    let process_name = "cmd.exe".to_string();
+    let process_name = "RunTimeBroker.exe".to_string();
 
     let process_path = if !process_name.contains('\\') {
         format!("C:\\Windows\\System32\\{}", process_name)
@@ -51,6 +51,11 @@ fn main() {
     println!("Thread Handle: 0x{:x}", pi.hThread as usize);
     println!("Process ID: {}", pi.dwProcessId);
     println!("Thread ID: {}", pi.dwThreadId);
+
+    //print msg "Press enter to snapshot the process"
+    println!("Press enter to snapshot the process");
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
 
     //take a snapshot of the process
     match func::capture_process_snapshot(pi.hProcess) {
