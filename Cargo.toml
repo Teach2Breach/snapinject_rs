@@ -1,0 +1,10 @@
+[package]
+name = "snapinject_rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+NtCreateUserProcess_rs = { git = "https://github.com/Teach2Breach/NtCreateUserProcess_rs.git" }
+noldr = { git = "https://github.com/Teach2Breach/noldr.git", branch = "main" }
+Snapshotting_rs = { git = "https://github.com/Teach2Breach/Snapshotting_rs" }
+winapi = { version = "0.3.9", features = ["processsnapshot", "processthreadsapi", "handleapi"] }
