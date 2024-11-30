@@ -3,6 +3,10 @@ use winapi::um::processthreadsapi::CreateProcessA;
 use winapi::um::winbase::{NORMAL_PRIORITY_CLASS, DETACHED_PROCESS, DEBUG_PROCESS};
 use winapi::um::processthreadsapi::STARTUPINFOA;
 use winapi::um::processthreadsapi::PROCESS_INFORMATION;
+use windows::Win32::System::Diagnostics::ProcessSnapshotting::{HPSSWALK, PssWalkMarkerCreate, PssWalkMarkerFree};
+use winapi::shared::winerror::ERROR_SUCCESS;
+use windows::core::HRESULT;
+use std::ptr::null_mut;
 
 mod func;
 
@@ -66,6 +70,18 @@ fn main() {
         }
     }
 
+    // Create a walk marker handle
+    let mut walker = HPSSWALK::default();
+    let pss_success = unsafe { PssWalkMarkerCreate(None, &mut walker) };
 
+    if pss_success != ERROR_SUCCESS {
+        eprintln!("[!] PssWalkMarkerCreate failed: Win32 error {}", pss_success);
+    } else {
+        // Print the handle using Debug formatting
+        println!("Walk Marker Handle: {:?}", walker);
+    }
+
+    // Clean up
+    unsafe { PssWalkMarkerFree(walker) };
 
 }
