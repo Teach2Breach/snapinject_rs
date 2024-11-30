@@ -5,7 +5,6 @@ use winapi::um::processthreadsapi::STARTUPINFOA;
 use winapi::um::processthreadsapi::PROCESS_INFORMATION;
 use windows::Win32::System::Diagnostics::ProcessSnapshotting::{HPSSWALK, PssWalkMarkerCreate, PssWalkMarkerFree};
 use winapi::shared::winerror::ERROR_SUCCESS;
-use windows::core::HRESULT;
 use std::ptr::null_mut;
 
 mod func;
@@ -61,14 +60,18 @@ fn main() {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).unwrap();
 
-    //take a snapshot of the process
-    match func::capture_process_snapshot(pi.hProcess) {
-        Ok(_) => println!("Main function ending - snapshot should be freed here"),
+    let process_handle = pi.hProcess;
+
+    // Capture just the snapshot handle value
+    let snapshot_handle = match func::capture_process_snapshot(process_handle) {
+        Ok(handle) => handle,
         Err(e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
+            eprintln!("Failed to capture snapshot: {}", e);
+            return;
         }
-    }
+    };
+
+    println!("Snapshot handle: 0x{:x}", &snapshot_handle as *const _ as usize);
 
     // Create a walk marker handle
     let mut walker = HPSSWALK::default();
@@ -77,11 +80,10 @@ fn main() {
     if pss_success != ERROR_SUCCESS {
         eprintln!("[!] PssWalkMarkerCreate failed: Win32 error {}", pss_success);
     } else {
-        // Print the handle using Debug formatting
-        println!("Walk Marker Handle: {:?}", walker);
+        println!("PssWalkMarkerCreate succeeded");
     }
 
-    // Clean up
-    unsafe { PssWalkMarkerFree(walker) };
+    //print the walk marker handle
+    println!("Walk Marker Handle: 0x{:?}", walker);
 
 }
