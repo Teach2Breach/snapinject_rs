@@ -6,9 +6,9 @@ This is a PoC version. It does not use dynamic resolution of API calls, etc...
 
 #### Usage
 
-This program can be compiled as an exe, or used as a dll. It can also be used as a library in other rust programs.
+This program can be compiled as an exe, or used as a library in other rust programs.
 
-To use as an exe or dll, swap the SHELL_CODE in main.rs with your own shellcode.
+To use as an exe, swap the SHELL_CODE in main.rs with your own shellcode and compile.
 
 To use as a library, add the following to your `Cargo.toml`:
 
