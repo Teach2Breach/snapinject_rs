@@ -1,3 +1,27 @@
 #### snapinject_rs
-based on https://gitlab.com/ORCA000/snaploader
 
+A process injection using process snapshotting based on https://gitlab.com/ORCA000/snaploader , in rust.
+
+This is a PoC version. It does not use dynamic resolution of API calls, etc...
+
+##### Usage
+
+This program can be compiled as an exe, or used as a dll. It can also be used as a library in other rust programs.
+
+To use as an exe or dll, swap the SHELL_CODE in main.rs with your own shellcode.
+
+To use as a library, add the following to your `Cargo.toml`:
+
+```toml
+[dependencies]
+snapinject_rs = { git = "https://github.com/Teach2Breach/snapinject_rs" }
+```
+Call the inject_shellcode function with your process name and shellcode.
+
+```rust
+snapinject_rs::inject_shellcode(&process_name, &SHELL_CODE).unwrap();
+```
+
+##### Credits
+
+- [ORCA000](https://gitlab.com/ORCA000) for the original [snaploader](https://gitlab.com/ORCA000/snaploader) project.
