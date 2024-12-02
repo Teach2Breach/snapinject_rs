@@ -22,6 +22,10 @@ Call the inject_shellcode function with your process name and shellcode.
 snapinject_rs::inject_shellcode(&process_name, &SHELL_CODE).unwrap();
 ```
 
+##### Notes
+
+I left a bunch of commented out code in the main.rs that shows how to use some of the functions individually. I also left in a bunch of commented out print statements that may be useful for debugging and understanding the code.
+
 ##### Credits
 
 - [ORCA000](https://gitlab.com/ORCA000) for the original [snaploader](https://gitlab.com/ORCA000/snaploader) project.
