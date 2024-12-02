@@ -28,4 +28,4 @@ I left a bunch of commented out code in the main.rs that shows how to use some o
 
 #### Credits
 
-- [ORCA000](https://gitlab.com/ORCA000) for the original [snaploader](https://gitlab.com/ORCA000/snaploader) project.
+- This project is a derivative work based on [snaploader](https://gitlab.com/ORCA000/snaploader), which is also licensed under the MIT License.
