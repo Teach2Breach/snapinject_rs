@@ -78,9 +78,9 @@ pub fn get_hidden_injection_address(
     println!("Walker handle raw: {:#x}", walker.0 as usize);
     let mut pss_success = unsafe {
         let result = PssWalkSnapshot(
-            &HPSS(snapshot.snapshot_handle as *mut std_c_void),
+            HPSS(snapshot.snapshot_handle as *mut std_c_void),
             PSS_WALK_VA_SPACE,
-            &walker,
+            walker,
             Some(&mut buffer),
         );
         println!("Initial PssWalkSnapshot result: {} (ERROR_NOT_FOUND = 1168)", result);
@@ -171,9 +171,9 @@ pub fn get_hidden_injection_address(
 
         pss_success = unsafe {
             let result = PssWalkSnapshot(
-                &HPSS(snapshot.snapshot_handle as *mut std_c_void),
+                HPSS(snapshot.snapshot_handle as *mut std_c_void),
                 PSS_WALK_VA_SPACE,
-                &walker,
+                walker,
                 Some(&mut buffer),
             );
             println!("PssWalkSnapshot result: {}", result);
