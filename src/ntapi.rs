@@ -8,7 +8,7 @@
 /// and also not tested. Please test it and let me know if it works.
 
 
-//indirect syscalls using VEH, Unwinder callstack spoofing
+//indirect dynamic syscalls using VEH and Unwinder callstack spoofing
 
 #![allow(non_snake_case, unused_imports)]
 use winapi::shared::windef::SIZE;
