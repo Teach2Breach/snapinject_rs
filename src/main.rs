@@ -5,6 +5,7 @@
 //use winapi::um::winbase::{DEBUG_PROCESS, DETACHED_PROCESS, NORMAL_PRIORITY_CLASS};
 
 mod func;
+mod ntapi;
 
 //shellcode to pop calc.exe
 pub const SHELL_CODE: [u8; 276] = [
