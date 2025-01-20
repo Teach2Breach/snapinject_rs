@@ -5,12 +5,15 @@ edition = "2021"
 # author = "Teach2Breach"
 
 [dependencies]
-NtCreateUserProcess_rs = { git = "https://github.com/Teach2Breach/NtCreateUserProcess_rs.git" }
+
 noldr = { git = "https://github.com/Teach2Breach/noldr.git", branch = "main" }
 Snapshotting_rs = { git = "https://github.com/Teach2Breach/Snapshotting_rs" }
 winapi = { version = "0.3.9", features = ["debugapi", "processsnapshot", "processthreadsapi", "handleapi", "winerror", "heapapi", "memoryapi"] }
-windows = { version = "0.58.0", features = ["Win32_System_Diagnostics_ProcessSnapshotting", "Win32_System_Diagnostics_Debug", "Win32_System_Kernel"] }
+windows = { version = "0.58.0", features = ["Win32_System_Threading", "Win32_System_Diagnostics_ProcessSnapshotting", "Win32_System_Diagnostics_Debug", "Win32_System_Kernel"] }
 litcrypt = "0.3.0"
+dinvoke_rs = "0.2.0"
+ntapi = "0.4.1"
+windows_0_51 = { package = "windows", version = "0.51" }
 
 [profile.release]
 strip = true  # Automatically strip symbols from the binary.
