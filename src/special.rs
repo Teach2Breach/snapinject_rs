@@ -10,6 +10,7 @@ use ntapi::ntpsapi::{
 };
 use ntapi::ntrtl::RTL_USER_PROC_PARAMS_NORMALIZED;
 
+
 use std::mem::zeroed;
 use std::ptr::{self, null_mut};
 use winapi::ctypes::c_void;
@@ -26,6 +27,10 @@ struct PsAttributeList {
     total_length: SIZE_T,
     attributes: [PS_ATTRIBUTE; 2],
 }
+
+const NORMAL_PRIORITY_CLASS: u32 = 0x00000020;
+const DETACHED_PROCESS: u32 = 0x00000008;
+const DEBUG_PROCESS: u32 = 0x00000001;
 
 //create suspended process with NtCreateUserProcess
 pub extern "C" fn CreateSuspendedProcess(ntdll: *const std::ffi::c_void, process_path: &str) -> (HANDLE, HANDLE) {
@@ -153,6 +158,30 @@ pub extern "C" fn CreateSuspendedProcess(ntdll: *const std::ffi::c_void, process
             println!("err 2: {:x}", status);
             return (HANDLE(0), HANDLE(0));
         }
+
+        // Set process priority class
+        let function_address = get_function_address(ntdll, "NtSetInformationProcess").unwrap();
+        let NtSetInformationProcess: extern "system" fn(
+            ProcessHandle: HANDLE,
+            ProcessInformationClass: u32,
+            ProcessInformation: *const c_void,
+            ProcessInformationLength: u32,
+        ) -> i32 = std::mem::transmute(function_address);
+
+        let priority_class = NORMAL_PRIORITY_CLASS | DETACHED_PROCESS | DEBUG_PROCESS;
+        let status = NtSetInformationProcess(
+            process_handle,
+            12, 
+            &priority_class as *const u32 as *const c_void,
+            std::mem::size_of::<u32>() as u32,
+        );
+
+        if !NT_SUCCESS(status) {
+            println!("Failed to set process attributes: {:x}", status);
+            // Continue anyway since the process is created
+        }
+
+        //need to check if the process has the right attributes set now and if it's suspended
 
         (process_handle, thread_handle)
     }
