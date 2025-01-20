@@ -1,6 +1,8 @@
 #![allow(unused_assignments)]
 #![allow(unused_variables)]
 #![allow(dead_code)]
+ 
+use_litcrypt!();
 
 // Standard library imports
 use std::{
