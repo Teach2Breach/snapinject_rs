@@ -7,3 +7,4 @@ going to swap it back to CreateProcess and take the NtCreateUserProcess stuff ou
 
 dynamic resolve is working, done for CreateProcessA, need to do for other functions and then clean up the code
 updated PssCaptureSnapshot to use the dynamic resolve stuff, need to do for other functions 
+remember to also remove winapi::um::errhandlingapi::GetLastError()

