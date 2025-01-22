@@ -382,7 +382,7 @@ pub fn snap_thread_hijack(
         ) -> u32;
 
         //call the function
-        let mut pss_result = unsafe {
+        let pss_result = unsafe {
             std::mem::transmute::<_, PssWalkSnapshotFn>(
                 match pss_walk_snapshot_address {
                     Some(addr) => addr,
