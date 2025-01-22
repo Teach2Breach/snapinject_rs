@@ -6,3 +6,4 @@ see http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%
 going to swap it back to CreateProcess and take the NtCreateUserProcess stuff out into a seperate project since it is going to take a while. At least I can get the dynamic resolve stuff working. When the new NtCreateUserProcess project with ability to set process attributes is done, I can swap it back in.
 
 dynamic resolve is working, done for CreateProcessA, need to do for other functions and then clean up the code
+updated PssCaptureSnapshot to use the dynamic resolve stuff, need to do for other functions 
