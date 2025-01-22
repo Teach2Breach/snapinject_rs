@@ -8,3 +8,6 @@ going to swap it back to CreateProcess and take the NtCreateUserProcess stuff ou
 dynamic resolve is working, done for CreateProcessA, need to do for other functions and then clean up the code
 updated PssCaptureSnapshot to use the dynamic resolve stuff, need to do for other functions 
 remember to also remove winapi::um::errhandlingapi::GetLastError()
+
+finished with dynamic resolve for snap_thread_hijack
+next going to work on doing the same for get_hidden_injection_address, but first need to pass the teb to it
