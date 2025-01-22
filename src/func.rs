@@ -55,7 +55,8 @@ pub fn get_helper(
         }
     }
 }
-
+//need to get rid of this. this repo doesn't use dynamic resolution. and instead of re-running the capture, I should be able to pass 
+//whats needed to get_hidden_injection_address
 pub fn capture_process_snapshot(handle: HANDLE) -> Result<ProcessSnapshot, String> {
     //println!("Capturing process...");
     //let flags: PSS_CAPTURE_FLAGS = PSS_CAPTURE_VA_CLONE | PSS_CAPTURE_VA_SPACE | PSS_CAPTURE_VA_SPACE_SECTION_INFORMATION;
