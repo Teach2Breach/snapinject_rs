@@ -1,9 +1,10 @@
+#![allow(non_snake_case)]
 use noldr::{get_dll_address, get_function_address, get_teb};
 pub use winapi;
 use winapi::{
     ctypes::c_void,
     um::{
-        processthreadsapi::{CreateProcessA, PROCESS_INFORMATION, STARTUPINFOA},
+        processthreadsapi::{PROCESS_INFORMATION, STARTUPINFOA},
         winbase::{DEBUG_PROCESS, DETACHED_PROCESS, NORMAL_PRIORITY_CLASS},
     },
 };
@@ -27,7 +28,6 @@ pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), Stri
     }
 
     let process_handle = pi.hProcess;
-    // ... existing code ...
 
     let shellcode_size = shellcode.len();
 
