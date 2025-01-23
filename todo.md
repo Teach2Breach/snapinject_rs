@@ -12,3 +12,4 @@ remember to also remove winapi::um::errhandlingapi::GetLastError()
 finished with dynamic resolve for snap_thread_hijack
 next going to work on doing the same for get_hidden_injection_address, but first need to pass the teb to it
 im on line 163 of func.rs
+im on line 310 of func.rs
