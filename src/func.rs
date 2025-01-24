@@ -388,6 +388,8 @@ pub fn get_hidden_injection_address(
     Err("No suitable injection location found".to_string())
 }
 
+//you are here
+
 //replace with NTAPI calls instead of VirtualProtectEx and WriteProcessMemory
 //use NtWriteVirtualMemory and NtProtectVirtualMemory or something equivalent
 pub fn inject_and_rwx(
