@@ -24,12 +24,16 @@ To use as a library, add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-snapinject_rs = { git = "https://github.com/Teach2Breach/snapinject_rs" }
+snapinject_rs = { git = "https://github.com/Teach2Breach/snapinject_rs", branch = "opsec" }
 ```
 Call the snapin function with your process name and shellcode.
 
 ```rust
-snapinject_rs::snapin(&process_name, &SHELL_CODE).unwrap();
+fn main() {
+    let process_name = "RunTimeBroker.exe";
+
+    snapinject_rs::snapin(&process_name, &SHELL_CODE).unwrap();
+}
 ```
 
 #### Credits

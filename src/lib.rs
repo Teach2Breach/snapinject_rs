@@ -466,9 +466,6 @@ fn get_hi_address(
 
                         //check if the function call was successful
                         if unsafe { heap_free(heap, 0, stack) } == FALSE {
-                            eprintln!("[!] HeapFree failed: Win32 error {}", unsafe {
-                                winapi::um::errhandlingapi::GetLastError()
-                            });
                             return Err(lc!("Failed to free heap").to_string());
                         }
 

