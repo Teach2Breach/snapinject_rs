@@ -15,6 +15,8 @@ note: I'll do a dinvoke version of this soon for another opsec focused version.
 
 #### Usage
 
+To use litcrypt string encryption, set the `LITCRYPT_ENCRYPT_KEY` environment variable before building. See litcrypt documentation for more information ([litcrypt](https://docs.rs/litcrypt/latest/litcrypt/)).
+
 This program can be compiled as an exe, or used as a library in other rust programs.
 
 To use as an exe, swap the SHELL_CODE in main.rs with your own shellcode and compile.
