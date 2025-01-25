@@ -14,3 +14,6 @@ next going to work on doing the same for get_hidden_injection_address, but first
 im on line 163 of func.rs
 im on line 310 of func.rs
 line 391 of func.rs
+done with func.rs. all the functions are dynamic resolved now. still need to swap to NT APIs for a future version.
+I'll also do a dinvoke version.
+its done. just needs cleanup and full litcrypt implementation.

