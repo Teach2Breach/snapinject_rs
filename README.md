@@ -1,8 +1,7 @@
 ### snapinject_rs
 
-A process injection using process snapshotting based on https://gitlab.com/ORCA000/snaploader , in rust.
-
-~~This is a PoC version. It does not use dynamic resolution of API calls, etc...~~
+A remote process injection using process snapshotting based on https://gitlab.com/ORCA000/snaploader , in rust.
+It creates a snapshot of a target process, and injects shellcode into it.
 
 This OSPEC branch uses dynamic resolution of API calls, and is more secure. A list of changes:
 
