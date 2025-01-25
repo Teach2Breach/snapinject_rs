@@ -1,7 +1,7 @@
 ### snapinject_rs
 
 A remote process injection using process snapshotting based on https://gitlab.com/ORCA000/snaploader , in rust.
-It creates a snapshot of a target process, and injects shellcode into it.
+It creates a sacrificial process, takes a snapshot of the process, and injects shellcode into it.
 
 This OSPEC branch uses dynamic resolution of API calls, and is more secure. A list of changes:
 
